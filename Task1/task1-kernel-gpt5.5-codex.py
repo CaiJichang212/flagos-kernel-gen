@@ -72,10 +72,10 @@ def _w4a8_group_gemm_moe_kernel(
         w_packed_ptrs = (
             w_q4_packed_ptr
             + pid_e * stride_w_e
-            + offs_n[:, None] * stride_w_n
-            + packed_k[None, :] * stride_w_k
+            + packed_k[:, None] * stride_w_k
+            + offs_n[None, :] * stride_w_n
         )
-        w_packed = tl.load(w_packed_ptrs, mask=mask_n[:, None], other=0)
+        w_packed = tl.load(w_packed_ptrs, mask=mask_n[None, :], other=0)
 
         w_zero_vals = tl.load(
             w_zero_ptr
@@ -86,13 +86,13 @@ def _w4a8_group_gemm_moe_kernel(
             other=0,
         ).to(tl.int16)
 
-        w_low = ((w_packed & 0x0F).to(tl.int16) - w_zero_vals[:, None]).to(tl.int8)
-        w_high = (((w_packed >> 4) & 0x0F).to(tl.int16) - w_zero_vals[:, None]).to(
+        w_low = ((w_packed & 0x0F).to(tl.int16) - w_zero_vals[None, :]).to(tl.int8)
+        w_high = (((w_packed >> 4) & 0x0F).to(tl.int16) - w_zero_vals[None, :]).to(
             tl.int8
         )
 
-        partial_even = tl.dot(x_even.to(tl.int8), tl.trans(w_low))
-        partial_odd = tl.dot(x_odd.to(tl.int8), tl.trans(w_high))
+        partial_even = tl.dot(x_even.to(tl.int8), w_low)
+        partial_odd = tl.dot(x_odd.to(tl.int8), w_high)
         partial = (partial_even + partial_odd).to(tl.float32)
 
         w_scale_vals = tl.load(
